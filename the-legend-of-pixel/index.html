@@ -1,0 +1,2313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Legend of Pixel: A Link to the Past (SNES Style)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', monospace;
+            background-color: #0b0f19;
+            color: #ffffff;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* SNES Crisp Pixel Rendering */
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-shadow: 0 0 35px rgba(0, 0, 0, 0.9), 0 0 15px rgba(34, 197, 94, 0.3);
+            border: 4px solid #3b2010;
+        }
+
+        /* Mode 7 / Scanline CRT Overlay */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.18) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 20;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* SNES Controller Buttons */
+        .snes-btn {
+            background: linear-gradient(180deg, #4b5563 0%, #1f2937 100%);
+            border: 2px solid #6b7280;
+            box-shadow: inset 0 2px 0 rgba(255,255,255,0.2), 0 4px 0 #111827;
+        }
+        .snes-btn:active {
+            transform: translateY(2px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 0 #111827;
+        }
+
+        .snes-a-btn {
+            background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
+            border: 2px solid #fca5a5;
+            box-shadow: inset 0 2px 0 rgba(255,255,255,0.4), 0 4px 0 #7f1d1d;
+        }
+        .snes-a-btn:active {
+            transform: translateY(3px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 1px 0 #7f1d1d;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 sm:p-4 bg-slate-950 crt overflow-hidden select-none">
+
+    <div class="relative flex flex-col items-center max-w-full">
+        <!-- Title Banner -->
+        <div class="text-center mb-2">
+            <h1 class="text-yellow-400 text-sm sm:text-xl tracking-widest drop-shadow-[0_3px_0_#000] flex items-center justify-center gap-2">
+                <span class="text-green-500">TRIFORCE</span> QUEST 16-BIT
+            </h1>
+            <p id="subtitleBanner" class="text-[9px] sm:text-xs text-amber-300 mt-1 drop-shadow-[0_1px_0_#000]">SOBREVIVÊNCIA INFINITA ESTILO SNES</p>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="relative rounded-lg bg-black overflow-hidden border-4 border-amber-800 shadow-2xl">
+            <canvas id="gameCanvas" width="512" height="448" class="block max-w-full h-auto cursor-pointer"></canvas>
+
+            <!-- Mobile Controls -->
+            <div id="mobileControls" class="flex justify-between items-center w-full p-2 bg-slate-900 border-t-2 border-amber-900 md:hidden select-none">
+                <!-- D-Pad -->
+                <div class="grid grid-cols-3 gap-1 w-32 h-32">
+                    <div></div>
+                    <button id="btnUp" class="snes-btn rounded-t-lg flex items-center justify-center text-white text-xs">▲</button>
+                    <div></div>
+                    <button id="btnLeft" class="snes-btn rounded-l-lg flex items-center justify-center text-white text-xs">◄</button>
+                    <div class="bg-zinc-800"></div>
+                    <button id="btnRight" class="snes-btn rounded-r-lg flex items-center justify-center text-white text-xs">►</button>
+                    <div></div>
+                    <button id="btnDown" class="snes-btn rounded-b-lg flex items-center justify-center text-white text-xs">▼</button>
+                    <div></div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="flex items-center pr-4">
+                    <button id="btnAttack" class="snes-a-btn text-white w-20 h-20 rounded-full font-bold text-xs flex items-center justify-center text-center">
+                        ATACAR<br>(Espaço)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div id="footerInfo" class="mt-2 text-[9px] sm:text-xs text-slate-400 text-center max-w-lg leading-relaxed">
+            <span class="text-amber-400">Mover:</span> WASD / Setas | <span class="text-amber-400">Atacar:</span> Espaço / Z | <span class="text-amber-400">Pausar:</span> ESC / P<br>
+            Entre nas portas para navegar pelo mapa infinito!
+        </div>
+    </div>
+
+    <script>
+        let currentLang = 'pt'; // 'pt' or 'en'
+
+        const I18N = {
+            pt: {
+                subtitleBanner: "SOBREVIVÊNCIA INFINITA ESTILO SNES",
+                footerInfo: '<span class="text-amber-400">Mover:</span> WASD / Setas | <span class="text-amber-400">Atacar:</span> Espaço / Z | <span class="text-amber-400">Pausar:</span> ESC / P<br>Entre nas portas para navegar pelo mapa infinito!',
+                btnAttack: 'ATACAR<br>(Espaço)',
+                subTitle: "A LINK TO THE PAST - SURVIVAL",
+                selectLang: "IDIOMA / LANGUAGE",
+                playBtn: "JOGAR AGORA",
+                madeBy: "jogo feito por Felipe Urbano de Godoy",
+                bestScore: "MELHOR RECORDE:",
+                dangerous: "É PERIGOSO IR SOZINHO!",
+                takeSword: "PEGUE ESTA ESPADA E DERROTE OS MONSTROS!",
+                leaveCave: "AGORA SAIA DA CAVERNA E",
+                defeatMonsters: "DERROTE TODOS OS MONSTROS!",
+                kills: "ABATES:",
+                best: "RECORDE:",
+                pauseTitle: "PAUSA",
+                currentRoom: "SALA ATUAL:",
+                rubies: "RUBIS:",
+                continueBtn: "CONTINUAR (ESC)",
+                restartBtn: "REINICIAR JOGO",
+                mainMenuBtn: "MENU PRINCIPAL",
+                gameOver: "GAME OVER"
+            },
+            en: {
+                subtitleBanner: "SNES STYLE ENDLESS SURVIVAL",
+                footerInfo: '<span class="text-amber-400">Move:</span> WASD / Arrows | <span class="text-amber-400">Attack:</span> Space / Z | <span class="text-amber-400">Pause:</span> ESC / P<br>Enter doors to explore the infinite map!',
+                btnAttack: 'ATTACK<br>(Space)',
+                subTitle: "A LINK TO THE PAST - SURVIVAL",
+                selectLang: "LANGUAGE / IDIOMA",
+                playBtn: "START GAME",
+                madeBy: "game made by Felipe Urbano de Godoy",
+                bestScore: "HIGH SCORE:",
+                dangerous: "IT'S DANGEROUS TO GO ALONE!",
+                takeSword: "TAKE THIS SWORD & DEFEAT MONSTERS!",
+                leaveCave: "NOW LEAVE THE CAVE AND",
+                defeatMonsters: "DEFEAT ALL MONSTERS!",
+                kills: "KILLS:",
+                best: "BEST:",
+                pauseTitle: "PAUSE",
+                currentRoom: "CURRENT ROOM:",
+                rubies: "RUPEES:",
+                continueBtn: "CONTINUE (ESC)",
+                restartBtn: "RESTART GAME",
+                mainMenuBtn: "MAIN MENU",
+                gameOver: "GAME OVER"
+            }
+        };
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = I18N[currentLang];
+            
+            const banner = document.getElementById('subtitleBanner');
+            if (banner) banner.innerText = t.subtitleBanner;
+
+            const footer = document.getElementById('footerInfo');
+            if (footer) footer.innerHTML = t.footerInfo;
+
+            const btnAttack = document.getElementById('btnAttack');
+            if (btnAttack) btnAttack.innerHTML = t.btnAttack;
+        }
+
+        class SNESAudio {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSword() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                
+                const bufferSize = this.ctx.sampleRate * 0.12;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(1200, now);
+                filter.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+                filter.Q.value = 3.0;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+
+                const osc = this.ctx.createOscillator();
+                const oscGain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.1);
+
+                oscGain.gain.setValueAtTime(0.2, now);
+                oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+                osc.connect(oscGain);
+                oscGain.connect(this.ctx.destination);
+                osc.start(now);
+            }
+
+            playHit() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.15);
+
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+            }
+
+            playKill() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(800, now + 0.08);
+                osc.frequency.linearRampToValueAtTime(120, now + 0.22);
+
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+            }
+
+            playRupee() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc1.type = 'sine';
+                osc2.type = 'triangle';
+
+                osc1.frequency.setValueAtTime(987.77, now); 
+                osc1.frequency.setValueAtTime(1318.51, now + 0.08); 
+
+                osc2.frequency.setValueAtTime(1975.53, now); 
+                osc2.frequency.setValueAtTime(2637.02, now + 0.08); 
+
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.25);
+                osc2.stop(now + 0.25);
+            }
+
+            playPotSmash() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(1000, now);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+            }
+
+            playTransition() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(500, now + 0.25);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            playGameOver() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(261.63, now); 
+                osc.frequency.setValueAtTime(246.94, now + 0.15); 
+                osc.frequency.setValueAtTime(233.08, now + 0.30); 
+                osc.frequency.setValueAtTime(220.00, now + 0.45); 
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.8);
+            }
+
+            playFanfare() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.25);
+                });
+            }
+        }
+
+        const audio = new SNESAudio();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const TILE_SIZE = 32;
+        const HUD_HEIGHT = 64;
+        const MAP_COLS = 16;
+        const MAP_ROWS = 12;
+        const SCREEN_WIDTH = MAP_COLS * TILE_SIZE;  // 512
+        const SCREEN_HEIGHT = (MAP_ROWS * TILE_SIZE) + HUD_HEIGHT; // 448
+
+        // Game Core States
+        let gameState = 'START'; // 'START', 'PLAYING', 'TRANSITION', 'GAMEOVER', 'PAUSED'
+        let currentRoomX = 0;
+        let currentRoomY = 0;
+        let nextRoomX = 0;
+        let nextRoomY = 0;
+        let visitedRooms = new Map();
+        let rupees = 0;
+        let enemiesKilled = 0;
+        let highScore = parseInt(localStorage.getItem('zelda_snes_highscore') || '0');
+        let hasSword = false;
+
+        let transitionProgress = 0;
+        let transitionDir = null;
+
+        // Visual Particles & FX
+        let particles = [];
+        let projectiles = [];
+
+        // Input State
+        const keys = {
+            up: false,
+            down: false,
+            left: false,
+            right: false,
+            attack: false
+        };
+
+        const PALETTE = {
+            GRASS_DARK: '#2d3748',
+            GRASS_MID: '#475569',     // Tom cinza pedra estilo dungeon SNES para máximo contraste
+            GRASS_LIGHT: '#64748b',
+            TREE_TRUNK: '#5c3818',
+            TREE_LEAF_DARK: '#1b4d24',
+            TREE_LEAF_MID: '#2d7c3a',
+            TREE_LEAF_LIGHT: '#45b054',
+            LINK_TUNIC: '#16a34a',
+            LINK_HAT: '#22c55e',
+            LINK_SKIN: '#fed7aa',
+            LINK_HAIR: '#fbbf24',     // Loiro clássico
+            LINK_HAIR_DARK: '#d97706',
+            LINK_BELT: '#78350f',
+            LINK_BOOTS: '#854d0e',
+            SHIELD_BLUE: '#2563eb',
+            SHIELD_GOLD: '#f59e0b',
+            SWORD_STEEL: '#e0f0ff',
+            SWORD_GOLD: '#f5d020',
+            MASTER_BLADE: '#f8fafc',
+            MASTER_GLOW: '#60a5fa',
+            MASTER_HILT: '#2563eb',
+            MASTER_GEM: '#f59e0b',
+            TRIFORCE_GOLD: '#f59e0b',
+            TRIFORCE_GLOW: '#fef08a',
+            TRIFORCE_DARK: '#b45309',
+            HEART_RED: '#e62828',
+            HEART_SHINE: '#ff9999',
+            RUPEE_GREEN: '#28e048',
+            RUPEE_SHINE: '#a0ffa0',
+            SOLDIER_ARMOR: '#d03020',
+            SOLDIER_HELM: '#f0e040',
+            SLIME_GREEN: '#40d060',
+            OCTOROK_RED: '#e04020'
+        };
+
+        const player = {
+            x: 7 * TILE_SIZE + 3,
+            y: 6 * TILE_SIZE + HUD_HEIGHT + 3,
+            width: 26,
+            height: 26,
+            speed: 3.0,
+            dir: 'DOWN',
+            maxHealth: 6,
+            health: 6,
+            isAttacking: false,
+            attackFrame: 0,
+            attackMaxFrames: 12,
+            invulnerableTimer: 0,
+
+            reset() {
+                this.x = 7 * TILE_SIZE + 3;
+                this.y = 6 * TILE_SIZE + HUD_HEIGHT + 3;
+                this.dir = 'DOWN';
+                this.health = this.maxHealth;
+                this.isAttacking = false;
+                this.attackFrame = 0;
+                this.invulnerableTimer = 0;
+            },
+
+            getSwordArc() {
+                const reach = 45;
+                const progress = this.attackFrame / this.attackMaxFrames;
+                const sweepAngle = (progress * Math.PI) - (Math.PI / 2);
+
+                let baseAngle = 0;
+                if (this.dir === 'DOWN') baseAngle = Math.PI / 2;
+                if (this.dir === 'UP') baseAngle = -Math.PI / 2;
+                if (this.dir === 'LEFT') baseAngle = Math.PI;
+                if (this.dir === 'RIGHT') baseAngle = 0;
+
+                const currentAngle = baseAngle + sweepAngle;
+                const cx = this.x + this.width / 2;
+                const cy = this.y + this.height / 2;
+
+                const tipX = cx + Math.cos(currentAngle) * reach;
+                const tipY = cy + Math.sin(currentAngle) * reach;
+
+                return {
+                    cx, cy, tipX, tipY, angle: currentAngle,
+                    box: {
+                        x: Math.min(cx, tipX) - 12,
+                        y: Math.min(cy, tipY) - 12,
+                        w: Math.abs(tipX - cx) + 24,
+                        h: Math.abs(tipY - cy) + 24
+                    }
+                };
+            }
+        };
+
+        class Enemy {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.width = 26;
+                this.height = 26;
+                this.dir = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)];
+                this.moveTimer = 0;
+                this.animTimer = 0;
+                this.animFrame = 0;
+                this.isHit = 0;
+                this.shootCooldown = 0;
+
+                if (type === 'SOLDIER') {
+                    this.speed = 1.6;
+                    this.hp = 3;
+                } else if (type === 'OCTOROK') {
+                    this.speed = 1.2;
+                    this.hp = 2;
+                } else if (type === 'SLIME') {
+                    this.speed = 2.2;
+                    this.hp = 1;
+                }
+            }
+
+            update(roomObstacles) {
+                if (this.isHit > 0) this.isHit--;
+
+                this.moveTimer++;
+                if (this.moveTimer > 50 + Math.random() * 50) {
+                    this.dir = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)];
+                    this.moveTimer = 0;
+                }
+
+                this.animTimer++;
+                if (this.animTimer > 8) {
+                    this.animFrame = (this.animFrame + 1) % 2;
+                    this.animTimer = 0;
+                }
+
+                if (this.type === 'OCTOROK') {
+                    this.shootCooldown++;
+                    if (this.shootCooldown > 120) {
+                        this.shootCooldown = 0;
+                        let pVx = 0, pVy = 0;
+                        if (this.dir === 'UP') pVy = -4;
+                        if (this.dir === 'DOWN') pVy = 4;
+                        if (this.dir === 'LEFT') pVx = -4;
+                        if (this.dir === 'RIGHT') pVx = 4;
+                        projectiles.push({
+                            x: this.x + 10,
+                            y: this.y + 10,
+                            vx: pVx,
+                            vy: pVy,
+                            life: 100
+                        });
+                    }
+                }
+
+                let dx = 0, dy = 0;
+                if (this.dir === 'UP') dy = -this.speed;
+                if (this.dir === 'DOWN') dy = this.speed;
+                if (this.dir === 'LEFT') dx = -this.speed;
+                if (this.dir === 'RIGHT') dx = this.speed;
+
+                const nextX = this.x + dx;
+                const nextY = this.y + dy;
+
+                const minX = TILE_SIZE;
+                const maxX = SCREEN_WIDTH - TILE_SIZE - this.width;
+                const minY = HUD_HEIGHT + TILE_SIZE;
+                const maxY = SCREEN_HEIGHT - TILE_SIZE - this.height;
+
+                if (nextX >= minX && nextX <= maxX && nextY >= minY && nextY <= maxY) {
+                    let collide = false;
+                    for (let obs of roomObstacles) {
+                        if (checkRectOverlap({ x: nextX, y: nextY, w: this.width, h: this.height }, obs)) {
+                            collide = true;
+                            break;
+                        }
+                    }
+                    if (!collide) {
+                        this.x = nextX;
+                        this.y = nextY;
+                    } else {
+                        this.dir = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)];
+                    }
+                } else {
+                    this.dir = ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)];
+                }
+            }
+        }
+
+        class Pot {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.w = TILE_SIZE;
+                this.h = TILE_SIZE;
+            }
+        }
+
+        class DropItem {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'RUPEE' or 'HEART'
+                this.life = 450;
+                this.bounceY = 0;
+                this.bounceSpeed = -3;
+            }
+
+            update() {
+                this.life--;
+                if (this.bounceY < 0 || this.bounceSpeed < 0) {
+                    this.bounceY += this.bounceSpeed;
+                    this.bounceSpeed += 0.4;
+                    if (this.bounceY > 0) this.bounceY = 0;
+                }
+            }
+        }
+
+        class Room {
+            constructor(rx, ry) {
+                this.rx = rx;
+                this.ry = ry;
+                this.grid = [];
+                this.obstacles = [];
+                this.pots = [];
+                this.enemies = [];
+                this.drops = [];
+
+                this.generate();
+            }
+
+            generate() {
+                const isStartingCave = (this.rx === 0 && this.ry === 0);
+
+                for (let r = 0; r < MAP_ROWS; r++) {
+                    this.grid[r] = [];
+                    for (let c = 0; c < MAP_COLS; c++) {
+                        const isTop = (r === 0);
+                        const isBottom = (r === MAP_ROWS - 1);
+                        const isLeft = (c === 0);
+                        const isRight = (c === MAP_COLS - 1);
+
+                        // Doorways (2 tiles wide)
+                        // In the starting cave (0,0), only the South door (bottom) is open to leave
+                        const isTopDoor = !isStartingCave && isTop && (c === 7 || c === 8);
+                        const isBottomDoor = isBottom && (c === 7 || c === 8);
+                        const isLeftDoor = !isStartingCave && isLeft && (r === 5 || r === 6);
+                        const isRightDoor = !isStartingCave && isRight && (r === 5 || r === 6);
+
+                        if (isTopDoor || isBottomDoor || isLeftDoor || isRightDoor) {
+                            this.grid[r][c] = 0; // Door corridor (clear passage)
+                        } else if (isTop || isBottom || isLeft || isRight) {
+                            this.grid[r][c] = 1; // Perimeter Wall
+                            this.obstacles.push({
+                                x: c * TILE_SIZE,
+                                y: r * TILE_SIZE + HUD_HEIGHT,
+                                w: TILE_SIZE,
+                                h: TILE_SIZE
+                            });
+                        } else {
+                            this.grid[r][c] = 0; // Floor
+                        }
+                    }
+                }
+
+                // If starting cave, no random trees/rocks/enemies/pots
+                if (isStartingCave) {
+                    return;
+                }
+
+                // Random Trees/Rocks (leaving door corridors clear)
+                const obstacleCount = 3 + Math.floor(Math.random() * 5);
+                for (let i = 0; i < obstacleCount; i++) {
+                    const c = 2 + Math.floor(Math.random() * (MAP_COLS - 4));
+                    const r = 2 + Math.floor(Math.random() * (MAP_ROWS - 4));
+
+                    const isCorridorX = (c === 7 || c === 8);
+                    const isCorridorY = (r === 5 || r === 6);
+
+                    if (!isCorridorX && !isCorridorY && this.grid[r][c] === 0) {
+                        this.grid[r][c] = 2;
+                        this.obstacles.push({
+                            x: c * TILE_SIZE,
+                            y: r * TILE_SIZE + HUD_HEIGHT,
+                            w: TILE_SIZE,
+                            h: TILE_SIZE
+                        });
+                    }
+                }
+
+                // Breakable Pots
+                const potCount = 2 + Math.floor(Math.random() * 4);
+                for (let p = 0; p < potCount; p++) {
+                    const c = 2 + Math.floor(Math.random() * (MAP_COLS - 4));
+                    const r = 2 + Math.floor(Math.random() * (MAP_ROWS - 4));
+                    if (this.grid[r][c] === 0) {
+                        this.pots.push(new Pot(c * TILE_SIZE, r * TILE_SIZE + HUD_HEIGHT));
+                    }
+                }
+
+                // Enemies scaled by distance from start room (0,0)
+                const dist = Math.abs(this.rx) + Math.abs(this.ry);
+                const enemyCount = Math.min(2 + Math.floor(dist * 0.9), 8);
+                const types = ['SOLDIER', 'OCTOROK', 'SLIME'];
+
+                for (let e = 0; e < enemyCount; e++) {
+                    let ex, ey, valid = false;
+                    let attempts = 0;
+                    while (!valid && attempts < 50) {
+                        attempts++;
+                        const c = 2 + Math.floor(Math.random() * (MAP_COLS - 4));
+                        const r = 2 + Math.floor(Math.random() * (MAP_ROWS - 4));
+                        if (this.grid[r][c] === 0) {
+                            ex = c * TILE_SIZE + 3;
+                            ey = r * TILE_SIZE + HUD_HEIGHT + 3;
+                            valid = true;
+                        }
+                    }
+                    if (valid) {
+                        const enemyType = types[Math.floor(Math.random() * types.length)];
+                        this.enemies.push(new Enemy(ex, ey, enemyType));
+                    }
+                }
+            }
+        }
+
+        function getRoomKey(rx, ry) { return `${rx},${ry}`; }
+
+        function getOrCreateRoom(rx, ry) {
+            const key = getRoomKey(rx, ry);
+            if (!visitedRooms.has(key)) {
+                visitedRooms.set(key, new Room(rx, ry));
+            }
+            return visitedRooms.get(key);
+        }
+
+        function checkRectOverlap(r1, r2) {
+            return (r1.x < r2.x + r2.w &&
+                    r1.x + r1.w > r2.x &&
+                    r1.y < r2.y + r2.h &&
+                    r1.y + r1.h > r2.y);
+        }
+
+        function spawnSparkles(x, y, color, count = 6) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    size: 2 + Math.random() * 3,
+                    color,
+                    life: 15 + Math.random() * 10
+                });
+            }
+        }
+
+        function resetGame() {
+            rupees = 0;
+            enemiesKilled = 0;
+            hasSword = false;
+            visitedRooms.clear();
+            currentRoomX = 0;
+            currentRoomY = 0;
+            projectiles = [];
+            particles = [];
+            player.reset();
+            gameState = 'PLAYING';
+        }
+
+        function triggerAttack() {
+            if (gameState !== 'PLAYING' || player.isAttacking || !hasSword) return;
+            player.isAttacking = true;
+            player.attackFrame = 0;
+            audio.playSword();
+        }
+
+        function drawOldMan(x, y) {
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(x + 16, y + 28, 12, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Red Robe
+            ctx.fillStyle = '#b91c1c';
+            ctx.fillRect(x + 6, y + 10, 20, 18);
+
+            // Robe Gold Collar/Trim
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(x + 12, y + 10, 8, 12);
+
+            // Skin / Face
+            ctx.fillStyle = '#fed7aa';
+            ctx.fillRect(x + 8, y + 4, 16, 8);
+
+            // White Hair & Long Beard
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 6, y + 2, 20, 4);  // Hair on top
+            ctx.fillRect(x + 6, y + 10, 20, 12); // Long Beard
+
+            // Eyes
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 10, y + 6, 3, 3);
+            ctx.fillRect(x + 19, y + 6, 3, 3);
+        }
+
+        function drawFire(x, y) {
+            const time = Date.now() / 150;
+            const flicker = Math.sin(time) * 2;
+
+            // Dynamic Warm Light Glow Radial Gradient
+            const glow = ctx.createRadialGradient(x + 16, y + 16, 4, x + 16, y + 16, 90 + flicker * 2);
+            glow.addColorStop(0, 'rgba(245, 158, 11, 0.35)');
+            glow.addColorStop(0.5, 'rgba(239, 68, 68, 0.15)');
+            glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x + 16, y + 16, 95, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Fire Base/Braziers
+            ctx.fillStyle = '#451a03';
+            ctx.fillRect(x + 4, y + 22, 24, 8);
+
+            // Flame Outer (Red/Orange)
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(x + 16, y + 16 + flicker, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Flame Inner (Yellow)
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(x + 16, y + 14 + flicker, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Flame Core (White)
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(x + 16, y + 12 + flicker, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Sparkle Particle
+            if (Math.random() < 0.3) {
+                particles.push({
+                    x: x + 16 + (Math.random() - 0.5) * 12,
+                    y: y + 10,
+                    vx: (Math.random() - 0.5) * 1.5,
+                    vy: -1 - Math.random() * 2,
+                    size: 2,
+                    color: '#fef08a',
+                    life: 12
+                });
+            }
+        }
+
+        function drawCaveWallBlock(x, y) {
+            ctx.fillStyle = '#1e130c';
+            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+            ctx.fillStyle = '#3a2518';
+            ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            ctx.fillStyle = '#5c3a21';
+            ctx.fillRect(x + 4, y + 4, 10, 8);
+            ctx.fillStyle = '#120a05';
+            ctx.fillRect(x + 6, y + 20, 20, 8);
+        }
+
+        function drawCaveMouthEntrance(x, y) {
+            // Mountain Rock Face
+            ctx.fillStyle = '#2b1a0d';
+            ctx.fillRect(x - TILE_SIZE, y, TILE_SIZE * 4, TILE_SIZE);
+            
+            // Archway Dark Entrance Hole
+            ctx.fillStyle = '#050407';
+            ctx.beginPath();
+            ctx.arc(x + TILE_SIZE, y + TILE_SIZE, TILE_SIZE + 4, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(x - 4, y + TILE_SIZE / 2, (TILE_SIZE * 2) + 8, TILE_SIZE / 2 + 4);
+        }
+
+        function drawSNESTree(x, y) {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(x + 16, y + 28, 14, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = PALETTE.TREE_TRUNK;
+            ctx.fillRect(x + 12, y + 18, 8, 12);
+
+            ctx.fillStyle = PALETTE.TREE_LEAF_DARK;
+            ctx.beginPath();
+            ctx.arc(x + 16, y + 14, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = PALETTE.TREE_LEAF_MID;
+            ctx.beginPath();
+            ctx.arc(x + 14, y + 12, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = PALETTE.TREE_LEAF_LIGHT;
+            ctx.beginPath();
+            ctx.arc(x + 12, y + 9, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawNintendoLogo(cx, cy) {
+            const width = 116;
+            const height = 22;
+            const x = cx - width / 2;
+            const y = cy - height / 2;
+
+            // Red Pixel Pill / Capsule background
+            ctx.fillStyle = '#e11d48';
+            ctx.fillRect(x + 4, y, width - 8, height);
+            ctx.fillRect(x, y + 4, width, height - 8);
+            ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+
+            // White Pill outline
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 4, y + 2, width - 8, 1);
+            ctx.fillRect(x + 4, y + height - 3, width - 8, 1);
+            ctx.fillRect(x + 2, y + 4, 1, height - 8);
+            ctx.fillRect(x + width - 3, y + 4, 1, height - 8);
+
+            // White "Nintendo" text inside
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '8px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Nintendo', cx, cy + 1);
+            ctx.textBaseline = 'alphabetic'; // restore default
+        }
+
+        function drawTitleLogo(cx, cy) {
+            // Radial Aura Glow
+            const aura = ctx.createRadialGradient(cx, cy, 10, cx, cy, 130);
+            aura.addColorStop(0, 'rgba(251, 191, 36, 0.3)');
+            aura.addColorStop(0.5, 'rgba(220, 38, 38, 0.15)');
+            aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = aura;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 130, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Master Sword (Behind logo)
+            const swordX = cx - 40;
+            const swordY = cy - 65;
+            
+            // Blade
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(swordX - 3, swordY, 6, 110);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(swordX - 3, swordY, 3, 110);
+            ctx.beginPath();
+            ctx.moveTo(swordX - 3, swordY);
+            ctx.lineTo(swordX, swordY - 12);
+            ctx.lineTo(swordX + 3, swordY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Hilt Winged Crossguard
+            ctx.fillStyle = '#1d4ed8';
+            ctx.fillRect(swordX - 16, swordY + 85, 32, 6);
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(swordX - 14, swordY + 85, 28, 2);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(swordX - 3, swordY + 84, 6, 6);
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(swordX - 2, swordY + 91, 4, 16);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(swordX - 4, swordY + 107, 8, 5);
+
+            // Hylian Shield (Left Side)
+            const shieldX = cx - 125;
+            const shieldY = cy - 35;
+            
+            // Outer Frame
+            ctx.fillStyle = '#d97706';
+            ctx.beginPath();
+            ctx.moveTo(shieldX + 25, shieldY);
+            ctx.lineTo(shieldX + 50, shieldY + 10);
+            ctx.lineTo(shieldX + 45, shieldY + 50);
+            ctx.lineTo(shieldX + 25, shieldY + 68);
+            ctx.lineTo(shieldX + 5, shieldY + 50);
+            ctx.lineTo(shieldX, shieldY + 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // Blue Field
+            ctx.fillStyle = '#1e40af';
+            ctx.beginPath();
+            ctx.moveTo(shieldX + 25, shieldY + 4);
+            ctx.lineTo(shieldX + 46, shieldY + 13);
+            ctx.lineTo(shieldX + 41, shieldY + 47);
+            ctx.lineTo(shieldX + 25, shieldY + 63);
+            ctx.lineTo(shieldX + 9, shieldY + 47);
+            ctx.lineTo(shieldX + 4, shieldY + 13);
+            ctx.closePath();
+            ctx.fill();
+
+            // Shield Triforce
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.moveTo(shieldX + 25, shieldY + 12);
+            ctx.lineTo(shieldX + 20, shieldY + 20);
+            ctx.lineTo(shieldX + 30, shieldY + 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(shieldX + 20, shieldY + 20);
+            ctx.lineTo(shieldX + 15, shieldY + 28);
+            ctx.lineTo(shieldX + 25, shieldY + 28);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(shieldX + 30, shieldY + 20);
+            ctx.lineTo(shieldX + 25, shieldY + 28);
+            ctx.lineTo(shieldX + 35, shieldY + 28);
+            ctx.closePath();
+            ctx.fill();
+
+            // Red Crest Emblem
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(shieldX + 21, shieldY + 34, 8, 12);
+            ctx.fillRect(shieldX + 15, shieldY + 38, 20, 4);
+
+            // "THE LEGEND OF" Header Text
+            ctx.font = '10px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#000000';
+            ctx.fillText('THE LEGEND OF', cx + 2, cy - 43);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillText('THE LEGEND OF', cx, cy - 45);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillText('THE LEGEND OF', cx - 1, cy - 46);
+
+            // "PIXEL" Big 3D Crimson Title
+            ctx.font = '36px "Press Start 2P"';
+            
+            // 3D Shadow
+            ctx.fillStyle = '#450a0a';
+            for (let i = 1; i <= 6; i++) {
+                ctx.fillText('PIXEL', cx + i, cy + 15 + i);
+            }
+
+            // Gold Bevel Outline
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillText('PIXEL', cx - 2, cy + 13);
+            ctx.fillText('PIXEL', cx + 2, cy + 13);
+            ctx.fillText('PIXEL', cx, cy + 11);
+            ctx.fillText('PIXEL', cx, cy + 15);
+
+            // Bright Red Crimson
+            ctx.fillStyle = '#dc2626';
+            ctx.fillText('PIXEL', cx, cy + 13);
+
+            // Top Highlight
+            ctx.fillStyle = '#f87171';
+            ctx.fillText('PIXEL', cx - 1, cy + 11);
+
+            // Green Ribbon Banner
+            const bannerY = cy + 32;
+            ctx.fillStyle = '#14532d';
+            ctx.fillRect(cx - 130, bannerY + 4, 260, 24);
+
+            ctx.fillStyle = '#16a34a';
+            ctx.fillRect(cx - 125, bannerY, 250, 24);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cx - 125, bannerY, 250, 24);
+
+            // Banner Text
+            ctx.fillStyle = '#fef08a';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText('TRIFORCE QUEST 16-BIT', cx, bannerY + 16);
+        }
+
+        function drawTriforceFloor(cx, cy) {
+            const size = 18; // Triangle dimension
+            const h = size * (Math.sqrt(3) / 2);
+
+            function drawTriangle(tx, ty, scale = 1) {
+                const s = size * scale;
+                const sh = h * scale;
+                ctx.beginPath();
+                ctx.moveTo(tx, ty - sh / 2);
+                ctx.lineTo(tx - s / 2, ty + sh / 2);
+                ctx.lineTo(tx + s / 2, ty + sh / 2);
+                ctx.closePath();
+            }
+
+            // Soft golden aura around the emblem
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+            drawTriangle(cx, cy - h / 2, 2.2);
+            ctx.fill();
+
+            // 3 Triforce Triangles (Power, Wisdom, Courage)
+            const triangles = [
+                { x: cx, y: cy - h / 2 },             // Top
+                { x: cx - size / 2, y: cy + h / 2 },  // Bottom Left
+                { x: cx + size / 2, y: cy + h / 2 }   // Bottom Right
+            ];
+
+            triangles.forEach(t => {
+                // Dark Gold Border
+                ctx.fillStyle = PALETTE.TRIFORCE_DARK;
+                drawTriangle(t.x, t.y + 1, 1.08);
+                ctx.fill();
+
+                // Main Golden Body
+                ctx.fillStyle = PALETTE.TRIFORCE_GOLD;
+                drawTriangle(t.x, t.y);
+                ctx.fill();
+
+                // Inner Highlight
+                ctx.fillStyle = PALETTE.TRIFORCE_GLOW;
+                drawTriangle(t.x - 1, t.y - 1, 0.45);
+                ctx.fill();
+            });
+        }
+
+        function drawSNESPot(x, y) {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(x + 6, y + 24, 20, 6);
+
+            ctx.fillStyle = '#b76e28';
+            ctx.fillRect(x + 6, y + 8, 20, 18);
+            ctx.fillStyle = '#d98e42';
+            ctx.fillRect(x + 8, y + 10, 12, 14);
+            ctx.fillStyle = '#5c3818';
+            ctx.fillRect(x + 8, y + 6, 16, 4);
+        }
+
+        function drawSNESRupee(x, y) {
+            ctx.fillStyle = PALETTE.RUPEE_GREEN;
+            ctx.beginPath();
+            ctx.moveTo(x + 8, y);
+            ctx.lineTo(x + 16, y + 8);
+            ctx.lineTo(x + 16, y + 20);
+            ctx.lineTo(x + 8, y + 28);
+            ctx.lineTo(x, y + 20);
+            ctx.lineTo(x, y + 8);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = PALETTE.RUPEE_SHINE;
+            ctx.beginPath();
+            ctx.moveTo(x + 8, y + 2);
+            ctx.lineTo(x + 13, y + 8);
+            ctx.lineTo(x + 8, y + 14);
+            ctx.lineTo(x + 3, y + 8);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawSNESHeart(x, y, full = true, half = false) {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(x + 1, y + 1, 18, 18);
+
+            ctx.fillStyle = '#400000';
+            ctx.fillRect(x, y, 18, 18);
+
+            if (!full && !half) return;
+
+            ctx.fillStyle = PALETTE.HEART_RED;
+            ctx.fillRect(x + 2, y + 2, 14, 14);
+
+            ctx.fillStyle = PALETTE.HEART_SHINE;
+            ctx.fillRect(x + 4, y + 4, 4, 4);
+
+            if (half) {
+                ctx.fillStyle = '#100000';
+                ctx.fillRect(x + 9, y + 2, 7, 14);
+            }
+        }
+
+        function drawSNESPlayer() {
+            if (player.invulnerableTimer > 0 && Math.floor(player.invulnerableTimer / 3) % 2 === 0) {
+                return;
+            }
+
+            const x = Math.round(player.x);
+            const y = Math.round(player.y);
+
+            // Sombra no chão
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.beginPath();
+            ctx.ellipse(x + 13, y + 24, 10, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Botas (Brown Boots)
+            ctx.fillStyle = PALETTE.LINK_BOOTS;
+            if (player.dir === 'DOWN' || player.dir === 'UP') {
+                ctx.fillRect(x + 6, y + 21, 5, 5);
+                ctx.fillRect(x + 15, y + 21, 5, 5);
+            } else if (player.dir === 'LEFT') {
+                ctx.fillRect(x + 5, y + 21, 6, 5);
+                ctx.fillRect(x + 13, y + 21, 5, 5);
+            } else if (player.dir === 'RIGHT') {
+                ctx.fillRect(x + 8, y + 21, 5, 5);
+                ctx.fillRect(x + 15, y + 21, 6, 5);
+            }
+
+            // Túnica Verde Clássica + Detalhes de gola branca
+            ctx.fillStyle = '#ffffff'; // Camisa por baixo
+            ctx.fillRect(x + 4, y + 10, 18, 3);
+
+            ctx.fillStyle = PALETTE.LINK_TUNIC;
+            ctx.fillRect(x + 5, y + 11, 16, 10);
+
+            // Cinto marrom com fivela dourada
+            ctx.fillStyle = PALETTE.LINK_BELT;
+            ctx.fillRect(x + 5, y + 16, 16, 3);
+            ctx.fillStyle = '#f59e0b'; // Fivela dourada
+            ctx.fillRect(x + 11, y + 16, 4, 3);
+
+            // Escudo Azul Hylian do SNES
+            function drawShield(sx, sy) {
+                ctx.fillStyle = PALETTE.SHIELD_GOLD;
+                ctx.fillRect(sx, sy, 7, 10);
+                ctx.fillStyle = PALETTE.SHIELD_BLUE;
+                ctx.fillRect(sx + 1, sy + 1, 5, 8);
+                ctx.fillStyle = '#ef4444'; // Emblema do Escudo
+                ctx.fillRect(sx + 2, sy + 3, 3, 3);
+            }
+
+            if (player.dir === 'DOWN') {
+                drawShield(x, y + 11);
+            } else if (player.dir === 'RIGHT') {
+                drawShield(x + 2, y + 11);
+            } else if (player.dir === 'LEFT') {
+                drawShield(x + 17, y + 11);
+            }
+
+            // Rosto / Pele
+            ctx.fillStyle = PALETTE.LINK_SKIN;
+            ctx.fillRect(x + 6, y + 4, 14, 8);
+
+            // Cabelo Loiro do Link
+            ctx.fillStyle = PALETTE.LINK_HAIR;
+            if (player.dir === 'DOWN') {
+                ctx.fillRect(x + 4, y + 3, 18, 4);  // Franja loira
+                ctx.fillRect(x + 4, y + 6, 3, 4);   // Cabelo lateral esquerdo
+                ctx.fillRect(x + 19, y + 6, 3, 4);  // Cabelo lateral direito
+            } else if (player.dir === 'UP') {
+                ctx.fillRect(x + 4, y + 2, 18, 7);  // Cabelo atrás
+            } else if (player.dir === 'LEFT') {
+                ctx.fillRect(x + 4, y + 3, 16, 4);
+                ctx.fillRect(x + 4, y + 6, 4, 4);
+            } else if (player.dir === 'RIGHT') {
+                ctx.fillRect(x + 6, y + 3, 16, 4);
+                ctx.fillRect(x + 18, y + 6, 4, 4);
+            }
+
+            // Gorro Verde Icônico e cauda dobrada do chapéu
+            ctx.fillStyle = PALETTE.LINK_HAT;
+            ctx.fillRect(x + 5, y, 16, 4);
+            if (player.dir === 'DOWN' || player.dir === 'RIGHT') {
+                ctx.fillRect(x + 18, y + 1, 5, 6); // Cauda do chapéu para direita
+                ctx.fillRect(x + 21, y + 5, 4, 5);
+            } else if (player.dir === 'LEFT') {
+                ctx.fillRect(x + 3, y + 1, 5, 6);  // Cauda do chapéu para esquerda
+                ctx.fillRect(x + 1, y + 5, 4, 5);
+            } else if (player.dir === 'UP') {
+                ctx.fillRect(x + 10, y + 3, 6, 8);  // Cauda caindo para trás
+            }
+
+            // Olhos
+            ctx.fillStyle = '#000000';
+            if (player.dir === 'DOWN') {
+                ctx.fillRect(x + 8, y + 7, 2, 3);
+                ctx.fillRect(x + 16, y + 7, 2, 3);
+            } else if (player.dir === 'LEFT') {
+                ctx.fillRect(x + 7, y + 7, 2, 3);
+            } else if (player.dir === 'RIGHT') {
+                ctx.fillRect(x + 17, y + 7, 2, 3);
+            }
+
+            // Animação de ataque com a Master Sword
+            if (player.isAttacking) {
+                const arc = player.getSwordArc();
+
+                // Master Sword Blue/Cyan Aura Glow
+                ctx.strokeStyle = PALETTE.MASTER_GLOW;
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(arc.cx, arc.cy);
+                ctx.lineTo(arc.tipX, arc.tipY);
+                ctx.stroke();
+
+                // Master Sword Silver Core Blade
+                ctx.strokeStyle = PALETTE.MASTER_BLADE;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(arc.cx, arc.cy);
+                ctx.lineTo(arc.tipX, arc.tipY);
+                ctx.stroke();
+
+                // Master Sword Iconic Blue Winged Hilt
+                ctx.fillStyle = PALETTE.MASTER_HILT;
+                ctx.beginPath();
+                ctx.arc(arc.cx, arc.cy, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Yellow Triforce Gem at Crossguard
+                ctx.fillStyle = PALETTE.MASTER_GEM;
+                ctx.fillRect(arc.cx - 2, arc.cy - 2, 4, 4);
+
+                // Blade Energy Sparks
+                if (Math.random() < 0.75) {
+                    particles.push({
+                        x: arc.tipX, y: arc.tipY,
+                        vx: (Math.random() - 0.5) * 3,
+                        vy: (Math.random() - 0.5) * 3,
+                        size: 2 + Math.random() * 2,
+                        color: Math.random() < 0.5 ? PALETTE.MASTER_GLOW : PALETTE.TRIFORCE_GLOW,
+                        life: 10
+                    });
+                }
+            }
+        }
+
+        function drawSNESEnemy(enemy) {
+            const x = Math.round(enemy.x);
+            const y = Math.round(enemy.y);
+
+            if (enemy.isHit > 0 && Math.floor(enemy.isHit / 2) % 2 === 0) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x, y, enemy.width, enemy.height);
+                return;
+            }
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(x + 13, y + 24, 9, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (enemy.type === 'SOLDIER') {
+                ctx.fillStyle = PALETTE.SOLDIER_ARMOR;
+                ctx.fillRect(x + 4, y + 8, 18, 14);
+                ctx.fillStyle = PALETTE.SOLDIER_HELM;
+                ctx.fillRect(x + 6, y + 2, 14, 8);
+                ctx.fillStyle = '#a0aec0';
+                ctx.fillRect(x + 22, y, 3, 24);
+            } else if (enemy.type === 'OCTOROK') {
+                ctx.fillStyle = PALETTE.OCTOROK_RED;
+                ctx.fillRect(x + 3, y + 4, 20, 18);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x + 9, y + 16, 8, 6);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 5, y + 6, 4, 4);
+                ctx.fillRect(x + 17, y + 6, 4, 4);
+            } else if (enemy.type === 'SLIME') {
+                ctx.fillStyle = PALETTE.SLIME_GREEN;
+                const bounce = (enemy.animFrame === 0) ? 0 : -3;
+                ctx.fillRect(x + 4, y + 8 + bounce, 18, 14);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x + 8, y + 10 + bounce, 3, 3);
+            }
+        }
+
+        function drawRoom(room) {
+            const isStartingCave = (room.rx === 0 && room.ry === 0);
+
+            if (isStartingCave) {
+                // Dark Cavern Floor
+                ctx.fillStyle = '#09070f';
+                ctx.fillRect(0, HUD_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - HUD_HEIGHT);
+
+                // Cavern Stone Floor Grid Pattern
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+                ctx.lineWidth = 1;
+                for (let r = 1; r < MAP_ROWS - 1; r++) {
+                    for (let c = 1; c < MAP_COLS - 1; c++) {
+                        ctx.strokeRect(c * TILE_SIZE, r * TILE_SIZE + HUD_HEIGHT, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+
+                // Render Rocky Cave Perimeter Walls
+                for (let c = 0; c < MAP_COLS; c++) {
+                    drawCaveWallBlock(c * TILE_SIZE, HUD_HEIGHT); // Top Wall
+                    if (c !== 7 && c !== 8) {
+                        drawCaveWallBlock(c * TILE_SIZE, SCREEN_HEIGHT - TILE_SIZE); // Bottom Wall
+                    }
+                }
+                for (let r = 1; r < MAP_ROWS - 1; r++) {
+                    drawCaveWallBlock(0, r * TILE_SIZE + HUD_HEIGHT); // Left Wall
+                    drawCaveWallBlock(SCREEN_WIDTH - TILE_SIZE, r * TILE_SIZE + HUD_HEIGHT); // Right Wall
+                }
+
+                // Cave Exit Archway at Bottom
+                ctx.fillStyle = '#020104';
+                ctx.fillRect(7 * TILE_SIZE, SCREEN_HEIGHT - TILE_SIZE, 2 * TILE_SIZE, TILE_SIZE);
+                ctx.strokeStyle = '#5c3a21';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(7 * TILE_SIZE, SCREEN_HEIGHT - TILE_SIZE, 2 * TILE_SIZE, TILE_SIZE);
+
+                // Old Man in Center
+                const oldManX = 8 * TILE_SIZE - 16;
+                const oldManY = 3 * TILE_SIZE + HUD_HEIGHT;
+                drawOldMan(oldManX, oldManY);
+
+                // Two Flanking Fires with ambient illumination
+                drawFire(oldManX - 64, oldManY);
+                drawFire(oldManX + 64, oldManY);
+
+                // Dialogue Text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '9px "Press Start 2P"';
+                ctx.textAlign = 'center';
+
+                const t = I18N[currentLang];
+
+                if (!hasSword) {
+                    ctx.fillText(t.dangerous, SCREEN_WIDTH / 2, HUD_HEIGHT + 42);
+                    ctx.fillText(t.takeSword, SCREEN_WIDTH / 2, HUD_HEIGHT + 60);
+
+                    // Draw Master Sword on Pedestal
+                    const pedX = oldManX;
+                    const pedY = oldManY + 54;
+
+                    // Pedestal
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(pedX + 4, pedY + 16, 24, 12);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillRect(pedX + 6, pedY + 14, 20, 4);
+
+                    // Floating Sword
+                    const floatY = Math.sin(Date.now() / 200) * 3;
+                    ctx.fillStyle = PALETTE.MASTER_HILT;
+                    ctx.fillRect(pedX + 10, pedY + 6 + floatY, 12, 4);
+                    ctx.fillStyle = PALETTE.MASTER_GEM;
+                    ctx.fillRect(pedX + 14, pedY + 6 + floatY, 4, 4);
+                    ctx.fillStyle = PALETTE.MASTER_BLADE;
+                    ctx.fillRect(pedX + 14, pedY - 6 + floatY, 4, 12);
+
+                    if (Math.random() < 0.2) {
+                        spawnSparkles(pedX + 16, pedY + floatY, '#fef08a', 2);
+                    }
+                } else {
+                    ctx.fillText(t.leaveCave, SCREEN_WIDTH / 2, HUD_HEIGHT + 45);
+                    ctx.fillText(t.defeatMonsters, SCREEN_WIDTH / 2, HUD_HEIGHT + 65);
+                }
+
+                ctx.textAlign = 'left';
+                return;
+            }
+
+            // Gray stone background pattern
+            ctx.fillStyle = PALETTE.GRASS_MID;
+            ctx.fillRect(0, HUD_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - HUD_HEIGHT);
+
+            // Visual Dark Stone Paths for Doorways (North, South, West, East)
+            ctx.fillStyle = '#263342';
+            ctx.fillRect(7 * TILE_SIZE, HUD_HEIGHT, 2 * TILE_SIZE, TILE_SIZE);
+            ctx.fillRect(7 * TILE_SIZE, SCREEN_HEIGHT - TILE_SIZE, 2 * TILE_SIZE, TILE_SIZE);
+            ctx.fillRect(0, HUD_HEIGHT + 5 * TILE_SIZE, TILE_SIZE, 2 * TILE_SIZE);
+            ctx.fillRect(SCREEN_WIDTH - TILE_SIZE, HUD_HEIGHT + 5 * TILE_SIZE, TILE_SIZE, 2 * TILE_SIZE);
+
+            // If room below starting cave (rx=0, ry=1), render mountain cave entrance at top door
+            if (room.rx === 0 && room.ry === 1) {
+                drawCaveMouthEntrance(7 * TILE_SIZE, HUD_HEIGHT);
+            }
+
+            // Center Room Golden Triforce Emblem
+            const roomCenterX = SCREEN_WIDTH / 2;
+            const roomCenterY = HUD_HEIGHT + (SCREEN_HEIGHT - HUD_HEIGHT) / 2;
+            drawTriforceFloor(roomCenterX, roomCenterY);
+
+            // Tiles / Obstacles
+            for (let r = 0; r < MAP_ROWS; r++) {
+                for (let c = 0; c < MAP_COLS; c++) {
+                    const tx = c * TILE_SIZE;
+                    const ty = r * TILE_SIZE + HUD_HEIGHT;
+                    const val = room.grid[r][c];
+
+                    if (val === 1 || val === 2) { // Perimeter or Internal Tree
+                        drawSNESTree(tx, ty);
+                    }
+                }
+            }
+
+            // Pots
+            for (let pot of room.pots) {
+                drawSNESPot(pot.x, pot.y);
+            }
+
+            // Drops
+            for (let drop of room.drops) {
+                if (drop.type === 'RUPEE') {
+                    drawSNESRupee(drop.x, drop.y + drop.bounceY);
+                } else if (drop.type === 'HEART') {
+                    drawSNESHeart(drop.x, drop.y + drop.bounceY, true, false);
+                }
+            }
+
+            // Enemies
+            for (let enemy of room.enemies) {
+                drawSNESEnemy(enemy);
+            }
+        }
+
+        function drawSNESHUD() {
+            ctx.fillStyle = '#0f2412';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, HUD_HEIGHT);
+
+            ctx.strokeStyle = '#d99b26';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(2, 2, SCREEN_WIDTH - 4, HUD_HEIGHT - 4);
+
+            // Minimap
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(12, 10, 60, 44);
+            ctx.strokeStyle = '#d99b26';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(12, 10, 60, 44);
+
+            const mapX = 12 + 30 + (currentRoomX * 5);
+            const mapY = 10 + 22 + (currentRoomY * 5);
+            ctx.fillStyle = PALETTE.RUPEE_GREEN;
+            ctx.fillRect(Math.max(14, Math.min(66, mapX)), Math.max(12, Math.min(50, mapY)), 4, 4);
+
+            drawSNESRupee(82, 18);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText(`x${rupees.toString().padStart(3, '0')}`, 104, 36);
+
+            const t = I18N[currentLang];
+            ctx.fillStyle = '#f56565';
+            ctx.fillText(`${t.kills}${enemiesKilled}`, 180, 26);
+            ctx.fillStyle = '#ecc94b';
+            ctx.fillText(`${t.best}${highScore}`, 180, 46);
+
+            ctx.fillStyle = '#f56565';
+            ctx.fillText('-LIFE-', 320, 22);
+
+            const totalHearts = player.maxHealth / 2;
+            for (let i = 0; i < totalHearts; i++) {
+                const hx = 315 + (i % 4) * 20;
+                const hy = 28 + Math.floor(i / 4) * 18;
+
+                const hp = player.health - (i * 2);
+                if (hp >= 2) drawSNESHeart(hx, hy, true, false);
+                else if (hp === 1) drawSNESHeart(hx, hy, false, true);
+                else drawSNESHeart(hx, hy, false, false);
+            }
+
+            // Pause Button
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(462, 12, 40, 40);
+            ctx.strokeStyle = '#d99b26';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(462, 12, 40, 40);
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(472, 22, 6, 20);
+            ctx.fillRect(486, 22, 6, 20);
+        }
+
+        function drawStartScreen() {
+            ctx.fillStyle = '#0b0f19';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            const t = I18N[currentLang];
+
+            // Nintendo Pixel Art Logo
+            drawNintendoLogo(SCREEN_WIDTH / 2, 22);
+
+            // Creator Credit Text
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '7px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.madeBy, SCREEN_WIDTH / 2, 44);
+
+            // Render Custom Title Logo Artwork
+            drawTitleLogo(SCREEN_WIDTH / 2, 125);
+
+            // Subtitle
+            ctx.fillStyle = '#22c55e';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText(t.subTitle, SCREEN_WIDTH / 2, 222);
+
+            // Language Selector Header
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText(t.selectLang, SCREEN_WIDTH / 2, 255);
+
+            // PT-BR Button
+            const isPt = currentLang === 'pt';
+            ctx.fillStyle = isPt ? '#15803d' : '#1e293b';
+            ctx.fillRect(126, 268, 120, 34);
+            ctx.strokeStyle = isPt ? '#4ade80' : '#475569';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 268, 120, 34);
+            ctx.fillStyle = isPt ? '#ffffff' : '#94a3b8';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText('PT-BR', 186, 290);
+
+            // ENGLISH Button
+            const isEn = currentLang === 'en';
+            ctx.fillStyle = isEn ? '#1d4ed8' : '#1e293b';
+            ctx.fillRect(266, 268, 120, 34);
+            ctx.strokeStyle = isEn ? '#60a5fa' : '#475569';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(266, 268, 120, 34);
+            ctx.fillStyle = isEn ? '#ffffff' : '#94a3b8';
+            ctx.fillText('ENGLISH', 326, 290);
+
+            // Start Button
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(126, 325, 260, 42);
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(126, 325, 260, 42);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '11px "Press Start 2P"';
+            ctx.fillText(t.playBtn, SCREEN_WIDTH / 2, 351);
+
+            // High Score
+            ctx.fillStyle = '#ecc94b';
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText(`${t.bestScore} ${highScore}`, SCREEN_WIDTH / 2, 400);
+            ctx.textAlign = 'left';
+        }
+
+        function drawPauseScreen() {
+            ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            const boxX = 86;
+            const boxY = 60;
+            const boxW = 340;
+            const boxH = 320;
+
+            const t = I18N[currentLang];
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(boxX, boxY, boxW, boxH);
+
+            ctx.strokeStyle = '#d99b26';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '16px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.pauseTitle, SCREEN_WIDTH / 2, boxY + 38);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText(`${t.currentRoom} (${currentRoomX}, ${currentRoomY})`, SCREEN_WIDTH / 2, boxY + 70);
+            ctx.fillText(`${t.rubies} ${rupees}  |  ${t.kills} ${enemiesKilled}`, SCREEN_WIDTH / 2, boxY + 92);
+
+            // Continuar Button
+            ctx.fillStyle = '#166534';
+            ctx.fillRect(126, 180, 260, 36);
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 180, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText(t.continueBtn, SCREEN_WIDTH / 2, 203);
+
+            // Reiniciar Button
+            ctx.fillStyle = '#991b1b';
+            ctx.fillRect(126, 230, 260, 36);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 230, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(t.restartBtn, SCREEN_WIDTH / 2, 253);
+
+            // Menu Principal Button
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(126, 280, 260, 36);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 280, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(t.mainMenuBtn, SCREEN_WIDTH / 2, 303);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawGameOverScreen() {
+            ctx.fillStyle = 'rgba(10, 0, 0, 0.88)';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            const t = I18N[currentLang];
+
+            ctx.fillStyle = '#e53e3e';
+            ctx.font = '22px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText(t.gameOver, SCREEN_WIDTH / 2, 110);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '11px "Press Start 2P"';
+            ctx.fillText(`${t.rubies} ${rupees}`, SCREEN_WIDTH / 2, 160);
+            ctx.fillText(`${t.kills} ${enemiesKilled}`, SCREEN_WIDTH / 2, 190);
+            ctx.fillStyle = '#ecc94b';
+            ctx.fillText(`${t.best} ${highScore}`, SCREEN_WIDTH / 2, 220);
+
+            // Botão Reiniciar Jogo
+            ctx.fillStyle = '#991b1b';
+            ctx.fillRect(126, 260, 260, 38);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 260, 260, 38);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText(t.restartBtn, SCREEN_WIDTH / 2, 284);
+
+            // Botão Menu Principal
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(126, 315, 260, 38);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 315, 260, 38);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(t.mainMenuBtn, SCREEN_WIDTH / 2, 339);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawPauseScreen() {
+            ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            const boxX = 86;
+            const boxY = 60;
+            const boxW = 340;
+            const boxH = 320;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(boxX, boxY, boxW, boxH);
+
+            ctx.strokeStyle = '#d99b26';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '16px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('PAUSA', SCREEN_WIDTH / 2, boxY + 38);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText(`SALA ATUAL: (${currentRoomX}, ${currentRoomY})`, SCREEN_WIDTH / 2, boxY + 70);
+            ctx.fillText(`RUBIS: ${rupees}  |  ABATES: ${enemiesKilled}`, SCREEN_WIDTH / 2, boxY + 92);
+
+            // Continuar Button
+            ctx.fillStyle = '#166534';
+            ctx.fillRect(126, 180, 260, 36);
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 180, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText('CONTINUAR (ESC)', SCREEN_WIDTH / 2, 203);
+
+            // Reiniciar Button
+            ctx.fillStyle = '#991b1b';
+            ctx.fillRect(126, 230, 260, 36);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 230, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('REINICIAR JOGO', SCREEN_WIDTH / 2, 253);
+
+            // Menu Principal Button
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(126, 280, 260, 36);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 280, 260, 36);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('MENU PRINCIPAL', SCREEN_WIDTH / 2, 303);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawGameOverScreen() {
+            ctx.fillStyle = 'rgba(10, 0, 0, 0.88)';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            ctx.fillStyle = '#e53e3e';
+            ctx.font = '22px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', SCREEN_WIDTH / 2, 110);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '11px "Press Start 2P"';
+            ctx.fillText(`RUBIS: ${rupees}`, SCREEN_WIDTH / 2, 160);
+            ctx.fillText(`ABATES: ${enemiesKilled}`, SCREEN_WIDTH / 2, 190);
+            ctx.fillStyle = '#ecc94b';
+            ctx.fillText(`RECORDE: ${highScore}`, SCREEN_WIDTH / 2, 220);
+
+            // Botão Reiniciar Jogo
+            ctx.fillStyle = '#991b1b';
+            ctx.fillRect(126, 260, 260, 38);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 260, 260, 38);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText('REINICIAR JOGO', SCREEN_WIDTH / 2, 284);
+
+            // Botão Menu Principal
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fillRect(126, 315, 260, 38);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(126, 315, 260, 38);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('MENU PRINCIPAL', SCREEN_WIDTH / 2, 339);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawTransition() {
+            const currentRoom = getOrCreateRoom(currentRoomX, currentRoomY);
+            drawRoom(currentRoom);
+            drawSNESPlayer();
+
+            ctx.fillStyle = `rgba(0, 0, 0, ${Math.sin(transitionProgress * Math.PI)})`;
+            ctx.fillRect(0, HUD_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - HUD_HEIGHT);
+        }
+
+        function update() {
+            if (gameState === 'TRANSITION') {
+                transitionProgress += 0.08;
+                if (transitionProgress >= 1) {
+                    currentRoomX = nextRoomX;
+                    currentRoomY = nextRoomY;
+                    gameState = 'PLAYING';
+                    transitionProgress = 0;
+                }
+                return;
+            }
+
+            if (gameState !== 'PLAYING') return;
+
+            const currentRoom = getOrCreateRoom(currentRoomX, currentRoomY);
+
+            // Timers & Cooldowns
+            if (player.invulnerableTimer > 0) player.invulnerableTimer--;
+
+            if (player.isAttacking) {
+                player.attackFrame++;
+                if (player.attackFrame >= player.attackMaxFrames) {
+                    player.isAttacking = false;
+                    player.attackFrame = 0;
+                }
+            }
+
+            // Player Movement
+            let dx = 0, dy = 0;
+            if (keys.up) { dy -= player.speed; player.dir = 'UP'; }
+            if (keys.down) { dy += player.speed; player.dir = 'DOWN'; }
+            if (keys.left) { dx -= player.speed; player.dir = 'LEFT'; }
+            if (keys.right) { dx += player.speed; player.dir = 'RIGHT'; }
+
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.7071;
+                dy *= 0.7071;
+            }
+
+            // X-axis Movement
+            let nextPlayerX = player.x + dx;
+            let collideX = false;
+            let playerBoxX = { x: nextPlayerX, y: player.y, w: player.width, h: player.height };
+
+            for (let obs of currentRoom.obstacles) {
+                if (checkRectOverlap(playerBoxX, obs)) { collideX = true; break; }
+            }
+            for (let pot of currentRoom.pots) {
+                if (checkRectOverlap(playerBoxX, pot)) { collideX = true; break; }
+            }
+            if (!collideX) player.x = nextPlayerX;
+
+            // Y-axis Movement
+            let nextPlayerY = player.y + dy;
+            let collideY = false;
+            let playerBoxY = { x: player.x, y: nextPlayerY, w: player.width, h: player.height };
+
+            for (let obs of currentRoom.obstacles) {
+                if (checkRectOverlap(playerBoxY, obs)) { collideY = true; break; }
+            }
+            for (let pot of currentRoom.pots) {
+                if (checkRectOverlap(playerBoxY, pot)) { collideY = true; break; }
+            }
+            if (!collideY) player.y = nextPlayerY;
+
+            // Pick up Master Sword in Starting Cave (0,0)
+            if (currentRoomX === 0 && currentRoomY === 0 && !hasSword) {
+                const pedBox = {
+                    x: 8 * TILE_SIZE - 16,
+                    y: 3 * TILE_SIZE + HUD_HEIGHT + 50,
+                    w: 32,
+                    h: 32
+                };
+                if (checkRectOverlap({ x: player.x, y: player.y, w: player.width, h: player.height }, pedBox)) {
+                    hasSword = true;
+                    audio.playFanfare();
+                    spawnSparkles(pedBox.x + 16, pedBox.y + 16, '#fef08a', 25);
+                }
+            }
+
+            // Room Boundaries & Door Detection
+            const topDoorX = 6 * TILE_SIZE;
+            const bottomDoorX = 9 * TILE_SIZE;
+            const leftDoorY = HUD_HEIGHT + 4 * TILE_SIZE;
+            const rightDoorY = HUD_HEIGHT + 7 * TILE_SIZE;
+
+            const inXDoorway = (player.x + player.width > topDoorX && player.x < bottomDoorX);
+            const inYDoorway = (player.y + player.height > leftDoorY && player.y < rightDoorY);
+
+            // Door trigger - North
+            if (inXDoorway && player.y <= HUD_HEIGHT + 6) {
+                nextRoomX = currentRoomX;
+                nextRoomY = currentRoomY - 1;
+                player.y = SCREEN_HEIGHT - TILE_SIZE - player.height - 8;
+                gameState = 'TRANSITION';
+                transitionProgress = 0;
+                audio.playTransition();
+                projectiles = [];
+                return;
+            }
+            // Door trigger - South
+            else if (inXDoorway && player.y + player.height >= SCREEN_HEIGHT - 6) {
+                nextRoomX = currentRoomX;
+                nextRoomY = currentRoomY + 1;
+                player.y = HUD_HEIGHT + TILE_SIZE + 8;
+                gameState = 'TRANSITION';
+                transitionProgress = 0;
+                audio.playTransition();
+                projectiles = [];
+                return;
+            }
+            // Door trigger - West
+            else if (inYDoorway && player.x <= 6) {
+                nextRoomX = currentRoomX - 1;
+                nextRoomY = currentRoomY;
+                player.x = SCREEN_WIDTH - TILE_SIZE - player.width - 8;
+                gameState = 'TRANSITION';
+                transitionProgress = 0;
+                audio.playTransition();
+                projectiles = [];
+                return;
+            }
+            // Door trigger - East
+            else if (inYDoorway && player.x + player.width >= SCREEN_WIDTH - 6) {
+                nextRoomX = currentRoomX + 1;
+                nextRoomY = currentRoomY;
+                player.x = TILE_SIZE + 8;
+                gameState = 'TRANSITION';
+                transitionProgress = 0;
+                audio.playTransition();
+                projectiles = [];
+                return;
+            }
+
+            // Keep in bounds if not aligned with a doorway
+            if (!inXDoorway) {
+                player.y = Math.max(HUD_HEIGHT + TILE_SIZE, Math.min(SCREEN_HEIGHT - TILE_SIZE - player.height, player.y));
+            }
+            if (!inYDoorway) {
+                player.x = Math.max(TILE_SIZE, Math.min(SCREEN_WIDTH - TILE_SIZE - player.width, player.x));
+            }
+
+            // Sword Attack Collisions
+            if (player.isAttacking) {
+                const arc = player.getSwordArc();
+
+                // Break Pots
+                for (let i = currentRoom.pots.length - 1; i >= 0; i--) {
+                    const pot = currentRoom.pots[i];
+                    if (checkRectOverlap(arc.box, pot)) {
+                        audio.playPotSmash();
+                        spawnSparkles(pot.x + 16, pot.y + 16, '#d98e42', 8);
+
+                        if (Math.random() < 0.6) {
+                            const dropType = Math.random() < 0.7 ? 'RUPEE' : 'HEART';
+                            currentRoom.drops.push(new DropItem(pot.x + 4, pot.y + 4, dropType));
+                        }
+                        currentRoom.pots.splice(i, 1);
+                    }
+                }
+
+                // Attack Enemies
+                for (let i = currentRoom.enemies.length - 1; i >= 0; i--) {
+                    const enemy = currentRoom.enemies[i];
+                    const enemyBox = { x: enemy.x, y: enemy.y, w: enemy.width, h: enemy.height };
+
+                    if (checkRectOverlap(arc.box, enemyBox) && enemy.isHit === 0) {
+                        enemy.hp--;
+                        enemy.isHit = 15;
+                        audio.playHit();
+
+                        if (enemy.hp <= 0) {
+                            audio.playKill();
+                            enemiesKilled++;
+                            if (enemiesKilled > highScore) {
+                                highScore = enemiesKilled;
+                                localStorage.setItem('zelda_snes_highscore', highScore.toString());
+                            }
+                            spawnSparkles(enemy.x + 13, enemy.y + 13, '#f56565', 12);
+
+                            if (Math.random() < 0.7) {
+                                const dropType = Math.random() < 0.8 ? 'RUPEE' : 'HEART';
+                                currentRoom.drops.push(new DropItem(enemy.x + 4, enemy.y + 4, dropType));
+                            }
+                            currentRoom.enemies.splice(i, 1);
+                        }
+                    }
+                }
+            }
+
+            // Enemies Update & Player Hit Collision
+            for (let enemy of currentRoom.enemies) {
+                enemy.update(currentRoom.obstacles);
+
+                if (player.invulnerableTimer === 0 && checkRectOverlap(
+                    { x: player.x, y: player.y, w: player.width, h: player.height },
+                    { x: enemy.x, y: enemy.y, w: enemy.width, h: enemy.height }
+                )) {
+                    player.health--;
+                    player.invulnerableTimer = 40;
+                    audio.playHit();
+
+                    if (player.health <= 0) {
+                        gameState = 'GAMEOVER';
+                        audio.playGameOver();
+                    }
+                }
+            }
+
+            // Projectiles Update
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const proj = projectiles[i];
+                proj.x += proj.vx;
+                proj.y += proj.vy;
+                proj.life--;
+
+                if (player.invulnerableTimer === 0 && checkRectOverlap(
+                    { x: player.x, y: player.y, w: player.width, h: player.height },
+                    { x: proj.x, y: proj.y, w: 8, h: 8 }
+                )) {
+                    player.health--;
+                    player.invulnerableTimer = 40;
+                    audio.playHit();
+                    projectiles.splice(i, 1);
+
+                    if (player.health <= 0) {
+                        gameState = 'GAMEOVER';
+                        audio.playGameOver();
+                    }
+                    continue;
+                }
+
+                if (proj.life <= 0 || proj.x < 0 || proj.x > SCREEN_WIDTH || proj.y < HUD_HEIGHT || proj.y > SCREEN_HEIGHT) {
+                    projectiles.splice(i, 1);
+                }
+            }
+
+            // Pick Up Drops
+            for (let i = currentRoom.drops.length - 1; i >= 0; i--) {
+                const drop = currentRoom.drops[i];
+                drop.update();
+
+                if (drop.life <= 0) {
+                    currentRoom.drops.splice(i, 1);
+                    continue;
+                }
+
+                if (checkRectOverlap(
+                    { x: player.x, y: player.y, w: player.width, h: player.height },
+                    { x: drop.x, y: drop.y, w: 20, h: 20 }
+                )) {
+                    audio.playRupee();
+                    if (drop.type === 'RUPEE') {
+                        rupees += 1;
+                    } else if (drop.type === 'HEART') {
+                        player.health = Math.min(player.maxHealth, player.health + 2);
+                    }
+                    spawnSparkles(drop.x + 10, drop.y + 10, '#ffffff', 6);
+                    currentRoom.drops.splice(i, 1);
+                }
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            if (gameState === 'START') {
+                drawStartScreen();
+            } else if (gameState === 'PLAYING') {
+                const currentRoom = getOrCreateRoom(currentRoomX, currentRoomY);
+                drawRoom(currentRoom);
+
+                for (let proj of projectiles) {
+                    ctx.fillStyle = '#e04020';
+                    ctx.fillRect(proj.x, proj.y, 8, 8);
+                }
+
+                for (let p of particles) {
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+
+                drawSNESPlayer();
+                drawSNESHUD();
+            } else if (gameState === 'TRANSITION') {
+                drawTransition();
+                drawSNESHUD();
+            } else if (gameState === 'PAUSED') {
+                const currentRoom = getOrCreateRoom(currentRoomX, currentRoomY);
+                drawRoom(currentRoom);
+                drawSNESPlayer();
+                drawSNESHUD();
+                drawPauseScreen();
+            } else if (gameState === 'GAMEOVER') {
+                const currentRoom = getOrCreateRoom(currentRoomX, currentRoomY);
+                drawRoom(currentRoom);
+                drawSNESPlayer();
+                drawSNESHUD();
+                drawGameOverScreen();
+            }
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+            }
+        }
+
+        function getCanvasMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        window.addEventListener('keydown', (e) => {
+            audio.init();
+
+            if (e.code === 'Escape' || e.code === 'KeyP') {
+                togglePause();
+                return;
+            }
+
+            if (gameState === 'PAUSED') return;
+
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = true;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+
+            if (e.code === 'Space' || e.code === 'KeyZ') triggerAttack();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.up = false;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+        });
+
+        const bindTouchBtn = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const startAction = (e) => {
+                e.preventDefault();
+                audio.init();
+                if (keyName === 'attack') triggerAttack();
+                else keys[keyName] = true;
+            };
+
+            const endAction = (e) => {
+                e.preventDefault();
+                if (keyName !== 'attack') keys[keyName] = false;
+            };
+
+            btn.addEventListener('touchstart', startAction, { passive: false });
+            btn.addEventListener('touchend', endAction, { passive: false });
+            btn.addEventListener('mousedown', startAction);
+            btn.addEventListener('mouseup', endAction);
+        };
+
+        bindTouchBtn('btnUp', 'up');
+        bindTouchBtn('btnDown', 'down');
+        bindTouchBtn('btnLeft', 'left');
+        bindTouchBtn('btnRight', 'right');
+        bindTouchBtn('btnAttack', 'attack');
+
+        canvas.addEventListener('click', (e) => {
+            audio.init();
+            const pos = getCanvasMousePos(e);
+
+            if (gameState === 'START') {
+                // Clique no botão PT-BR
+                if (pos.x >= 126 && pos.x <= 246 && pos.y >= 268 && pos.y <= 302) {
+                    setLanguage('pt');
+                    audio.playRupee();
+                    return;
+                }
+                // Clique no botão ENGLISH
+                if (pos.x >= 266 && pos.x <= 386 && pos.y >= 268 && pos.y <= 302) {
+                    setLanguage('en');
+                    audio.playRupee();
+                    return;
+                }
+                // Clique no botão Jogar / Start
+                if (pos.x >= 126 && pos.x <= 386 && pos.y >= 325 && pos.y <= 367) {
+                    resetGame();
+                    return;
+                }
+                return;
+            }
+
+            if (gameState === 'GAMEOVER') {
+                // Botão Reiniciar Jogo
+                if (pos.x >= 126 && pos.x <= 386 && pos.y >= 260 && pos.y <= 298) {
+                    resetGame();
+                }
+                // Botão Menu Principal
+                else if (pos.x >= 126 && pos.x <= 386 && pos.y >= 315 && pos.y <= 353) {
+                    gameState = 'START';
+                }
+                return;
+            }
+
+            if (gameState === 'PLAYING') {
+                // Pause button on HUD
+                if (pos.x >= 462 && pos.x <= 502 && pos.y >= 12 && pos.y <= 52) {
+                    togglePause();
+                }
+                return;
+            }
+
+            if (gameState === 'PAUSED') {
+                // Continuar button
+                if (pos.x >= 126 && pos.x <= 386 && pos.y >= 180 && pos.y <= 216) {
+                    gameState = 'PLAYING';
+                }
+                // Reiniciar button
+                else if (pos.x >= 126 && pos.x <= 386 && pos.y >= 230 && pos.y <= 266) {
+                    resetGame();
+                }
+                // Menu Principal button
+                else if (pos.x >= 126 && pos.x <= 386 && pos.y >= 280 && pos.y <= 316) {
+                    gameState = 'START';
+                }
+            }
+        });
+
+        window.onload = function() {
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
